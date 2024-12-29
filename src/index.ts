@@ -1,41 +1,6 @@
 import z, { type ZodUnionOptions } from "zod";
-
-type ConcatArrayBuffers = (
-  buffers: Array<ArrayBufferView | ArrayBufferLike>,
-) => ArrayBuffer;
-
-const { concatArrayBuffers } = ((): {
-  concatArrayBuffers: ConcatArrayBuffers;
-} => {
-  if (Bun !== undefined) {
-    return Bun;
-  }
-  const concatArrayBuffers: ConcatArrayBuffers = (buffers) => {
-    const totalLength = buffers.reduce(
-      (sum, buffer) => sum + buffer.byteLength,
-      0,
-    );
-
-    const combinedBuffer = new ArrayBuffer(totalLength);
-    const combinedView = new Uint8Array(combinedBuffer);
-    let offset = 0;
-    buffers.forEach((buffer) => {
-      if (ArrayBuffer.isView(buffer)) {
-        combinedView.set(
-          new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength),
-          offset,
-        );
-        offset += buffer.byteLength;
-      } else if (buffer instanceof ArrayBuffer) {
-        combinedView.set(new Uint8Array(buffer), offset);
-        offset += buffer.byteLength;
-      }
-    });
-
-    return combinedBuffer;
-  };
-  return { concatArrayBuffers };
-})();
+import { rapidhash } from "rapidhash-js";
+import { concatArrayBuffers } from "./concatArrayBuffers";
 
 // 3 bits
 enum Types {
@@ -498,14 +463,14 @@ const serializeEffects = (
       addIssue: () => {},
       path: [],
     });
-    return serializeInternal(schema._def.schema, processed, ctx);
+    return serializeInternal(schema.innerType(), processed, ctx);
   }
   if (ctx.parsed && schema._def.effect.type === "transform") {
     throw new Error(
       "cannot serialize transformed value. value was transformed because it is nested inside an .catch() and the catch was triggered",
     );
   }
-  return serializeInternal(schema._def.schema, value, ctx);
+  return serializeInternal(schema.innerType(), value, ctx);
 };
 
 export const serialize = <T>(
@@ -516,7 +481,9 @@ export const serialize = <T>(
   if (!parseRes.success) {
     throw new Error("cannot parse schema", { cause: parseRes.error });
   }
-  return serializeInternal(schema, input, { parsed: false });
+  const headerBuffer = makeHeader(schema);
+  const contentBuffer = serializeInternal(schema, input, { parsed: false });
+  return concatArrayBuffers([headerBuffer, contentBuffer]);
 };
 
 type SerializeContext = { parsed: boolean };
@@ -626,6 +593,122 @@ const serializeInternal = <T>(
   throw new Error("unimplemented");
 };
 
+export const PROTOCOL_VERSION = 1;
+const makeHeader = (schema: z.ZodTypeAny): ArrayBuffer => {
+  const buffer = new ArrayBuffer(9);
+  const view = new DataView(buffer);
+  view.setUint8(0, PROTOCOL_VERSION);
+  view.setBigUint64(
+    1,
+    rapidhash(new Uint8Array(zodTypeIdentity(schema, { lazySeen: [] }))),
+  );
+  return buffer;
+};
+
+const zodTypeIdentity = <T>(
+  schema: z.ZodType<T>,
+  ctx: { lazySeen: Array<z.ZodLazy<any>> },
+): Types[] => {
+  switch (true) {
+    case schema instanceof z.ZodAny:
+      throw new Error("z.any() schema cannot be serialized");
+    case schema instanceof z.ZodUnknown:
+      throw new Error("z.unknown() schema cannot be serialized");
+    case schema instanceof z.ZodNever:
+      throw new Error("z.never() schema cannot be serialized");
+    case schema instanceof z.ZodVoid:
+      throw new Error("z.void() schema cannot be serialized");
+    case schema instanceof z.ZodFunction:
+      throw new Error("z.function() schema cannot be serialized");
+    case schema instanceof z.ZodSymbol:
+      throw new Error("z.symbol() schema cannot be serialized");
+    case schema instanceof z.ZodPromise:
+      throw new Error(
+        "z.promise() schema cannot be serialized await Promise first",
+      );
+    case schema instanceof z.ZodLiteral && schema.value === undefined:
+    case schema instanceof z.ZodLiteral && schema.value === null:
+    case schema instanceof z.ZodUndefined:
+    case schema instanceof z.ZodNull:
+      return [Types.Object];
+    case schema instanceof z.ZodNativeEnum &&
+      typeof schema.enum[Object.keys(schema.enum)[0]] === "string":
+    case schema instanceof z.ZodLiteral && typeof schema.value === "string":
+    case schema instanceof z.ZodString:
+    case schema instanceof z.ZodEnum:
+      return [Types.String];
+    case schema instanceof z.ZodNativeEnum &&
+      typeof schema.enum[Object.keys(schema.enum)[0]] === "number":
+    case schema instanceof z.ZodBigInt && !schema._def.coerce:
+    case schema instanceof z.ZodNumber:
+    case schema instanceof z.ZodNaN:
+    case schema instanceof z.ZodBigInt:
+    case schema instanceof z.ZodLiteral && typeof schema.value === "number":
+    case schema instanceof z.ZodLiteral && typeof schema.value === "bigint":
+    case schema instanceof z.ZodLiteral && typeof schema.value === "boolean":
+    case schema instanceof z.ZodBoolean:
+      return [Types.Nummeric];
+    case schema instanceof z.ZodDate:
+      return [Types.Date];
+    case schema instanceof z.ZodObject:
+      return [
+        Types.Object,
+        ...Object.entries(schema.shape).flatMap(([_, field]) =>
+          zodTypeIdentity(field as z.ZodTypeAny, ctx),
+        ),
+      ];
+    case schema instanceof z.ZodArray:
+      return [Types.Array, ...zodTypeIdentity(schema.element, ctx)];
+    case schema instanceof z.ZodTuple:
+      return [
+        Types.Array,
+        ...(schema as z.ZodTuple).items.flatMap((i) => zodTypeIdentity(i, ctx)),
+      ];
+    case schema instanceof z.ZodSet:
+      return [Types.Array, ...zodTypeIdentity(schema._def.valueType, ctx)];
+    case schema instanceof z.ZodUnion:
+    case schema instanceof z.ZodDiscriminatedUnion:
+      return [
+        Types.Union,
+        ...schema.options.flatMap((o: z.ZodTypeAny) => zodTypeIdentity(o, ctx)),
+      ];
+    case schema instanceof z.ZodRecord:
+    case schema instanceof z.ZodMap:
+      return [
+        Types.Map,
+        ...zodTypeIdentity(schema.keySchema, ctx),
+        ...zodTypeIdentity(schema.valueSchema, ctx),
+      ];
+    case schema instanceof z.ZodIntersection:
+      return [
+        ...zodTypeIdentity(schema._def.left, ctx),
+        ...zodTypeIdentity(schema._def.right, ctx),
+      ];
+    case schema instanceof z.ZodOptional:
+    case schema instanceof z.ZodNullable:
+    case schema instanceof z.ZodReadonly:
+    case schema instanceof z.ZodBranded:
+      return zodTypeIdentity(schema.unwrap(), ctx);
+    case schema instanceof z.ZodLazy:
+      if (!ctx.lazySeen.includes(schema)) {
+        ctx.lazySeen.push(schema);
+        return zodTypeIdentity(schema.schema, ctx);
+      }
+      return [];
+    case schema instanceof z.ZodDefault:
+      return zodTypeIdentity(schema.removeDefault(), ctx);
+    case schema instanceof z.ZodCatch:
+      return zodTypeIdentity(schema.removeCatch(), ctx);
+    case schema instanceof z.ZodPipeline:
+      return zodTypeIdentity(schema._def.in, ctx);
+    case schema instanceof z.ZodEffects:
+      return zodTypeIdentity(schema.innerType(), ctx);
+  }
+
+  console.log(schema);
+
+  throw new Error("unimplemented");
+};
 type ParseContext = { offset: number };
 
 const parseString = (buffer: ArrayBuffer, ctx: ParseContext): string => {
@@ -818,11 +901,31 @@ const parseMap = (
   return isMap ? new Map(entries) : Object.fromEntries(entries);
 };
 
+const parseHeader = (
+  buffer: ArrayBuffer,
+): { version: number; hash: bigint } => {
+  const view = new DataView(buffer);
+  const version = view.getUint8(0);
+  const hash = view.getBigUint64(1);
+  return { version, hash };
+};
+
 export const parse = <T>(schema: z.ZodType<T>, buffer: ArrayBuffer): T => {
-  const value = parseInternal(schema, buffer, { offset: 0 });
+  const { version, hash } = parseHeader(buffer);
+  const schemaHash = rapidhash(
+    new Uint8Array(zodTypeIdentity(schema, { lazySeen: [] })),
+  );
+  if (version !== PROTOCOL_VERSION) {
+    throw new Error("Protocol versions does not match cannot decode value");
+  }
+  if (hash !== schemaHash) {
+    throw new Error("Schemas do not match cannot decode value");
+  }
+  const value = parseInternal(schema, buffer, { offset: 9 });
   return schema.parse(value);
 };
-export const parseInternal = <T>(
+
+const parseInternal = <T>(
   schema: z.ZodType<T>,
   buffer: ArrayBuffer,
   ctx: ParseContext,
