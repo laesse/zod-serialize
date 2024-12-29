@@ -1,7 +1,8 @@
 {
-  "name": "zod-jit-compile",
+  "name": "zod-serialize",
   "module": "index.ts",
   "type": "module",
+  "version": "0.1.0",
   "devDependencies": {
     "@types/bun": "latest"
   },
@@ -9,8 +10,6 @@
     "typescript": "^5.0.0"
   },
   "dependencies": {
-    "benny": "^3.7.1",
-    "fast-json-stringify": "^6.0.0",
     "zod": "^3.24.1"
   }
 }

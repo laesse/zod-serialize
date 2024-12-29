@@ -1,5 +1,42 @@
 import z, { type ZodUnionOptions } from "zod";
 
+type ConcatArrayBuffers = (
+  buffers: Array<ArrayBufferView | ArrayBufferLike>,
+) => ArrayBuffer;
+
+const { concatArrayBuffers } = ((): {
+  concatArrayBuffers: ConcatArrayBuffers;
+} => {
+  if (Bun !== undefined) {
+    return Bun;
+  }
+  const concatArrayBuffers: ConcatArrayBuffers = (buffers) => {
+    const totalLength = buffers.reduce(
+      (sum, buffer) => sum + buffer.byteLength,
+      0,
+    );
+
+    const combinedBuffer = new ArrayBuffer(totalLength);
+    const combinedView = new Uint8Array(combinedBuffer);
+    let offset = 0;
+    buffers.forEach((buffer) => {
+      if (ArrayBuffer.isView(buffer)) {
+        combinedView.set(
+          new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength),
+          offset,
+        );
+        offset += buffer.byteLength;
+      } else if (buffer instanceof ArrayBuffer) {
+        combinedView.set(new Uint8Array(buffer), offset);
+        offset += buffer.byteLength;
+      }
+    });
+
+    return combinedBuffer;
+  };
+  return { concatArrayBuffers };
+})();
+
 // 3 bits
 enum Types {
   Nummeric, // 0b000
@@ -119,7 +156,7 @@ const serializeNumeric = (value: number | bigint | boolean): ArrayBuffer => {
   } else {
     throw new Error("unknown number type", type);
   }
-  return Bun.concatArrayBuffers([
+  return concatArrayBuffers([
     new Uint8Array([(Types.Nummeric << 5) | type]),
     buffer,
   ]);
@@ -156,7 +193,7 @@ const serializeString = (value: string): ArrayBuffer => {
   }
   header[0] |= Types.String << 5;
   header[0] |= !short ? 0x10 : 0;
-  return Bun.concatArrayBuffers([header, textBuffer]);
+  return concatArrayBuffers([header, textBuffer]);
 };
 
 /**
@@ -170,7 +207,7 @@ const serializeString = (value: string): ArrayBuffer => {
 * @returns ArrayBuffer with the serialized value
 */
 const serializeDate = (value: Date): ArrayBuffer => {
-  return Bun.concatArrayBuffers([
+  return concatArrayBuffers([
     new Uint8Array([Types.Date << 5]),
     new BigInt64Array([BigInt(value.getTime())]),
   ]);
@@ -235,7 +272,7 @@ const serializeObject = (
     },
   );
   const header = new Uint8Array([Types.Object << 5]);
-  return Bun.concatArrayBuffers([header, ...buffers]);
+  return concatArrayBuffers([header, ...buffers]);
 };
 
 const serializeUndefined = (): ArrayBuffer =>
@@ -274,7 +311,7 @@ const serializeArray = (
     const buffers = value
       .values()
       .map((v) => serializeInternal(schema._def.valueType, v, ctx));
-    return Bun.concatArrayBuffers([header, ...buffers]);
+    return concatArrayBuffers([header, ...buffers]);
   }
   if (value instanceof Set) {
     throw new Error(
@@ -283,12 +320,12 @@ const serializeArray = (
   }
   if (schema instanceof z.ZodArray) {
     const buffers = value.map((v) => serializeInternal(schema.element, v, ctx));
-    return Bun.concatArrayBuffers([header, ...buffers]);
+    return concatArrayBuffers([header, ...buffers]);
   } else if (schema instanceof z.ZodTuple) {
     const buffers = schema.items.map((schema, index) =>
       serializeInternal(schema, value[index], ctx),
     );
-    return Bun.concatArrayBuffers([header, ...buffers]);
+    return concatArrayBuffers([header, ...buffers]);
   }
 
   throw new Error("unreachable");
@@ -347,7 +384,7 @@ const serializeUnion = (
     throw new Error("invalid union");
   }
   const header = new Uint8Array([(Types.Union << 5) | index]);
-  return Bun.concatArrayBuffers([header, buffer]);
+  return concatArrayBuffers([header, buffer]);
 };
 
 const serializeMapHeader = (
@@ -402,7 +439,7 @@ const serializeMap = (
     serializeInternal(schema.keySchema, key, ctx),
     serializeInternal(schema.valueSchema, value, ctx),
   ]);
-  return Bun.concatArrayBuffers([header, ...buffers].flat());
+  return concatArrayBuffers([header, ...buffers].flat());
 };
 
 /**
@@ -434,7 +471,7 @@ const serializeIntersection = (
       ctx,
     );
   }
-  throw new Error("unsuported instersection schema: " + Bun.inspect(schema));
+  throw new Error("unsuported instersection schema: " + JSON.stringify(schema));
 };
 /**
  * there are 3 kinds of effects
