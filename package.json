@@ -1,0 +1,16 @@
+{
+  "name": "zod-jit-compile",
+  "module": "index.ts",
+  "type": "module",
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "benny": "^3.7.1",
+    "fast-json-stringify": "^6.0.0",
+    "zod": "^3.24.1"
+  }
+}
