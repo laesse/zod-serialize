@@ -4,8 +4,8 @@ type ConcatArrayBuffers = (
 export const { concatArrayBuffers } = ((): {
   concatArrayBuffers: ConcatArrayBuffers;
 } => {
-  if (Bun !== undefined) {
-    return Bun;
+  if (globalThis.Bun !== undefined) {
+    return globalThis.Bun;
   }
   const concatArrayBuffers: ConcatArrayBuffers = (buffers) => {
     const totalLength = buffers.reduce(

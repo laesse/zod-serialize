@@ -1,204 +1,200 @@
 import { describe, it, test, expect } from "bun:test";
 import z from "zod";
-import { serialize, parse } from ".";
+import { encode, decode } from ".";
 
-const serializeAndParse = <T>(schema: z.ZodType<T, any>, value: T | unknown) =>
-  parse(schema, serialize(schema, value));
+const encodeAndDecode = <T>(schema: z.ZodType<T, any>, value: T | unknown) =>
+  decode(schema, encode(schema, value));
 
 describe("e2e", () => {
   describe("string", () => {
-    it("serializes and parses a string", () => {
-      expect(serializeAndParse(z.string(), "hello")).toBe("hello");
+    it("encodes and decodes a string", () => {
+      expect(encodeAndDecode(z.string(), "hello")).toBe("hello");
     });
     it("coerces the value to a string", () => {
-      expect(serializeAndParse(z.coerce.string(), 33)).toBe("33");
+      expect(encodeAndDecode(z.coerce.string(), 33)).toBe("33");
     });
     it("doesn't coerce the value if it shouldn't ", () => {
-      expect(() => serializeAndParse(z.string(), 33)).toThrow();
+      expect(() => encodeAndDecode(z.string(), 33)).toThrow();
     });
-    it("serializes and parses a long string", () => {
-      expect(serializeAndParse(z.string(), "hello".repeat(2000))).toBe(
+    it("encodes and decodes a long string", () => {
+      expect(encodeAndDecode(z.string(), "hello".repeat(2000))).toBe(
         "hello".repeat(2000),
       );
     });
     it("failes if the string is to long", () => {
-      expect(() =>
-        serializeAndParse(z.string(), "x".repeat(2 ** 20)),
-      ).toThrow();
+      expect(() => encodeAndDecode(z.string(), "x".repeat(2 ** 20))).toThrow();
     });
   });
   describe("numeric", () => {
     describe("variants", () => {
-      it("serializes and parses a 8bit number", () => {
-        expect(serializeAndParse(z.number(), 42)).toBe(42);
+      it("encodes and decodes a 8bit number", () => {
+        expect(encodeAndDecode(z.number(), 42)).toBe(42);
       });
-      it("serializes and parses a 16 bit number", () => {
-        expect(serializeAndParse(z.number(), 2 ** 10)).toBe(2 ** 10);
+      it("encodes and decodes a 16 bit number", () => {
+        expect(encodeAndDecode(z.number(), 2 ** 10)).toBe(2 ** 10);
       });
-      it("serializes and parses a 32 bit number", () => {
-        expect(serializeAndParse(z.number(), 2 ** 24)).toBe(2 ** 24);
+      it("encodes and decodes a 32 bit number", () => {
+        expect(encodeAndDecode(z.number(), 2 ** 24)).toBe(2 ** 24);
       });
-      it("serializes and parses a 64 bit number", () => {
-        expect(serializeAndParse(z.number(), 2 ** 35)).toBe(2 ** 35);
+      it("encodes and decodes a 64 bit number", () => {
+        expect(encodeAndDecode(z.number(), 2 ** 35)).toBe(2 ** 35);
       });
-      it("serializes and parses a 64 bit bigint", () => {
-        expect(serializeAndParse(z.bigint(), 2n ** 35n)).toBe(2n ** 35n);
+      it("encodes and decodes a 64 bit bigint", () => {
+        expect(encodeAndDecode(z.bigint(), 2n ** 35n)).toBe(2n ** 35n);
       });
-      it("serializes and parses floats", () => {
-        expect(serializeAndParse(z.number(), 3.141)).toBe(3.141);
+      it("encodes and decodes floats", () => {
+        expect(encodeAndDecode(z.number(), 3.141)).toBe(3.141);
       });
-      it("serializes and parses Infinity", () => {
-        expect(serializeAndParse(z.number(), Infinity)).toBe(Infinity);
+      it("encodes and decodes Infinity", () => {
+        expect(encodeAndDecode(z.number(), Infinity)).toBe(Infinity);
       });
-      it("serializes and parses -Infinity", () => {
-        expect(serializeAndParse(z.number(), -Infinity)).toBe(-Infinity);
+      it("encodes and decodes -Infinity", () => {
+        expect(encodeAndDecode(z.number(), -Infinity)).toBe(-Infinity);
       });
-      it("serializes and parses NaN", () => {
-        expect(serializeAndParse(z.nan(), NaN)).toBe(NaN);
+      it("encodes and decodes NaN", () => {
+        expect(encodeAndDecode(z.nan(), NaN)).toBe(NaN);
       });
-      it("serializes and parses negative numbers", () => {
-        expect(serializeAndParse(z.number(), -33)).toBe(-33);
+      it("encodes and decodes negative numbers", () => {
+        expect(encodeAndDecode(z.number(), -33)).toBe(-33);
       });
     });
     describe("limits", () => {
       it("failes for to big bigints", () => {
-        expect(() => serializeAndParse(z.bigint(), 2n ** 63n)).toThrow();
+        expect(() => encodeAndDecode(z.bigint(), 2n ** 63n)).toThrow();
       });
       it("failes for to small bigints", () => {
-        expect(() =>
-          serializeAndParse(z.bigint(), -(2n ** 63n) - 1n),
-        ).toThrow();
+        expect(() => encodeAndDecode(z.bigint(), -(2n ** 63n) - 1n)).toThrow();
       });
     });
     describe("coercion", () => {
       it("coerces numeric strings to numbers", () => {
-        expect(serializeAndParse(z.coerce.number(), "22")).toBe(22);
+        expect(encodeAndDecode(z.coerce.number(), "22")).toBe(22);
       });
       it("doesn't coerce the value if it shouldn't", () => {
-        expect(() => serializeAndParse(z.number(), "22")).toThrow();
+        expect(() => encodeAndDecode(z.number(), "22")).toThrow();
       });
       it("coerces numeric strings to bigints", () => {
-        expect(serializeAndParse(z.coerce.bigint(), "22")).toBe(22n);
+        expect(encodeAndDecode(z.coerce.bigint(), "22")).toBe(22n);
       });
       it("coerces dates to numbers", () => {
-        expect(
-          serializeAndParse(z.coerce.number(), new Date("2024-01-01")),
-        ).toBe(+new Date("2024-01-01"));
+        expect(encodeAndDecode(z.coerce.number(), new Date("2024-01-01"))).toBe(
+          +new Date("2024-01-01"),
+        );
       });
     });
   });
   describe("boolean", () => {
-    it("serializes and parses a boolean", () => {
-      expect(serializeAndParse(z.boolean(), true)).toBe(true);
+    it("encodes and decodes a boolean", () => {
+      expect(encodeAndDecode(z.boolean(), true)).toBe(true);
     });
     it("coerces the value to boolean", () => {
-      expect(serializeAndParse(z.coerce.boolean(), 1)).toBe(true);
+      expect(encodeAndDecode(z.coerce.boolean(), 1)).toBe(true);
     });
     it("doesn't coerce the value if it shouln't", () => {
-      expect(() => serializeAndParse(z.boolean(), 1)).toThrow();
+      expect(() => encodeAndDecode(z.boolean(), 1)).toThrow();
     });
   });
   describe("date", () => {
-    it("serializes and parses a date", () => {
-      expect(serializeAndParse(z.date(), new Date("2024-01-01"))).toEqual(
+    it("encodes and decodes a date", () => {
+      expect(encodeAndDecode(z.date(), new Date("2024-01-01"))).toEqual(
         new Date("2024-01-01"),
       );
     });
     it("coerces the value to a date", () => {
-      expect(serializeAndParse(z.coerce.date(), 946684800000)).toEqual(
+      expect(encodeAndDecode(z.coerce.date(), 946684800000)).toEqual(
         new Date("2000-01-01"),
       );
     });
     it("doesn't coerce the value if it shouldn't", () => {
-      expect(() => serializeAndParse(z.date(), 946684800000)).toThrow();
+      expect(() => encodeAndDecode(z.date(), 946684800000)).toThrow();
     });
   });
   describe("undefined", () => {
-    it("serializes and parses undefined", () => {
-      expect(serializeAndParse(z.undefined(), undefined)).toBe(undefined);
+    it("encodes and decodes undefined", () => {
+      expect(encodeAndDecode(z.undefined(), undefined)).toBe(undefined);
     });
     it("works also with .optional()", () => {
-      expect(serializeAndParse(z.string().optional(), undefined)).toBe(
+      expect(encodeAndDecode(z.string().optional(), undefined)).toBe(
         undefined as any,
       );
     });
     it("works also with .nullish()", () => {
-      expect(serializeAndParse(z.string().nullish(), undefined)).toBe(
+      expect(encodeAndDecode(z.string().nullish(), undefined)).toBe(
         undefined as any,
       );
     });
     it("fails if the value is not optional", () => {
-      expect(() => serializeAndParse(z.string(), undefined)).toThrow();
+      expect(() => encodeAndDecode(z.string(), undefined)).toThrow();
     });
   });
   describe("null", () => {
-    it("serializes and parses null", () => {
-      expect(serializeAndParse(z.null(), null)).toBe(null);
+    it("encodes and decodes null", () => {
+      expect(encodeAndDecode(z.null(), null)).toBe(null);
     });
     it("works also with .nullable()", () => {
-      expect(serializeAndParse(z.string().nullable(), null)).toBe(null);
+      expect(encodeAndDecode(z.string().nullable(), null)).toBe(null);
     });
     it("works also with .nullish()", () => {
-      expect(serializeAndParse(z.string().nullish(), null)).toBe(null);
+      expect(encodeAndDecode(z.string().nullish(), null)).toBe(null);
     });
     it("fails if the value is not nullabe", () => {
-      expect(() => serializeAndParse(z.string(), null)).toThrow();
+      expect(() => encodeAndDecode(z.string(), null)).toThrow();
     });
   });
   describe("array like", () => {
     describe("array", () => {
-      it("serializes and parses an array", () => {
-        expect(serializeAndParse(z.array(z.string()), ["hello"])).toEqual([
+      it("encodes and decodes an array", () => {
+        expect(encodeAndDecode(z.array(z.string()), ["hello"])).toEqual([
           "hello",
         ]);
       });
-      it("serializes and parses an medium sized array", () => {
+      it("encodes and decodes an medium sized array", () => {
         const value = Array.from({ length: 500 }).map((_, i) => i);
-        expect(serializeAndParse(z.array(z.number()), value)).toEqual(value);
+        expect(encodeAndDecode(z.array(z.number()), value)).toEqual(value);
       });
-      it("serializes and parses an long array", () => {
+      it("encodes and decodes an long array", () => {
         const value = Array.from({ length: 5_000 }).map((_, i) => i);
-        expect(serializeAndParse(z.array(z.number()), value)).toEqual(value);
+        expect(encodeAndDecode(z.array(z.number()), value)).toEqual(value);
       });
       // This test is skipped in development mode because it takes a long time to run
       it("fails if array is to long", () => {
         const value = Array.from({ length: 2 ** 19 });
         expect(() =>
-          serializeAndParse(z.array(z.boolean().optional()), value),
+          encodeAndDecode(z.array(z.boolean().optional()), value),
         ).toThrow();
       });
       it("fails if the value is not an array", () => {
-        expect(() => serializeAndParse(z.array(z.string()), "hello")).toThrow();
+        expect(() => encodeAndDecode(z.array(z.string()), "hello")).toThrow();
       });
       it("fails if the array contains invalid values", () => {
         expect(() =>
-          serializeAndParse(z.array(z.string()), ["hello", 33]),
+          encodeAndDecode(z.array(z.string()), ["hello", 33]),
         ).toThrow();
       });
     });
     describe("set", () => {
-      it("serializes and parses a set", () => {
-        expect(
-          serializeAndParse(z.set(z.string()), new Set(["hello"])),
-        ).toEqual(new Set(["hello"]));
+      it("encodes and decodes a set", () => {
+        expect(encodeAndDecode(z.set(z.string()), new Set(["hello"]))).toEqual(
+          new Set(["hello"]),
+        );
       });
-      it("serializes and parses a big set", () => {
+      it("encodes and decodes a big set", () => {
         const value = new Set(Array.from({ length: 10_000 }).map((_, i) => i));
-        expect(serializeAndParse(z.set(z.number()), value)).toEqual(value);
+        expect(encodeAndDecode(z.set(z.number()), value)).toEqual(value);
       });
       it("fails if the value is not a set", () => {
-        expect(() => serializeAndParse(z.set(z.string()), "hello")).toThrow();
+        expect(() => encodeAndDecode(z.set(z.string()), "hello")).toThrow();
       });
       it("fails if the set contains invalid values", () => {
         expect(() =>
-          serializeAndParse(z.set(z.string()), new Set(["hello", 33])),
+          encodeAndDecode(z.set(z.string()), new Set(["hello", 33])),
         ).toThrow();
       });
     });
     describe("tuple", () => {
-      it("serializes and parses a tuple", () => {
+      it("encodes and decodes a tuple", () => {
         expect(
-          serializeAndParse(z.tuple([z.string(), z.number()]), ["hello", 33]),
+          encodeAndDecode(z.tuple([z.string(), z.number()]), ["hello", 33]),
         ).toEqual(["hello", 33]);
       });
     });
@@ -209,9 +205,9 @@ describe("e2e", () => {
       optional: z.string().optional(),
       nullish: z.string().nullish(),
     });
-    it("serializes and parses an object", () => {
+    it("encodes and decodes an object", () => {
       expect(
-        serializeAndParse(schema, {
+        encodeAndDecode(schema, {
           string: "hello",
           optional: "world",
           nullish: null,
@@ -220,7 +216,7 @@ describe("e2e", () => {
     });
     it("handles passes trough undefined as a value", () => {
       expect(
-        serializeAndParse(schema, {
+        encodeAndDecode(schema, {
           string: "hello",
           optional: undefined,
           nullish: "world",
@@ -232,46 +228,46 @@ describe("e2e", () => {
       });
     });
     it("handles passes trough an missing optional property", () => {
-      expect(serializeAndParse(schema, { string: "hello" })).toStrictEqual({
+      expect(encodeAndDecode(schema, { string: "hello" })).toStrictEqual({
         string: "hello",
       });
     });
   });
   describe("map", () => {
-    it("serializes and parses a map", () => {
+    it("encodes and decodes a map", () => {
       const value = new Map([
         ["hello", 33],
         ["world", 44],
       ]);
-      expect(serializeAndParse(z.map(z.string(), z.number()), value)).toEqual(
+      expect(encodeAndDecode(z.map(z.string(), z.number()), value)).toEqual(
         value,
       );
     });
-    it("serializes and parses a long map", () => {
+    it("encodes and decodes a long map", () => {
       const value = new Map(
         Array.from({ length: 2 ** 10 }).map((_, i) => [i.toString(), i]),
       );
-      expect(serializeAndParse(z.map(z.string(), z.number()), value)).toEqual(
+      expect(encodeAndDecode(z.map(z.string(), z.number()), value)).toEqual(
         value,
       );
     });
-    it("serializes and parses a record", () => {
+    it("encodes and decodes a record", () => {
       const value = Object.fromEntries([
         ["hello", 33],
         ["world", 44],
       ]);
-      expect(
-        serializeAndParse(z.record(z.string(), z.number()), value),
-      ).toEqual(value);
+      expect(encodeAndDecode(z.record(z.string(), z.number()), value)).toEqual(
+        value,
+      );
     });
   });
   describe("intersection", () => {
-    it("serializes and parses an object intersection", () => {
+    it("encodes and decodes an object intersection", () => {
       const schema = z.intersection(
         z.object({ a: z.string() }),
         z.object({ b: z.number() }),
       );
-      expect(serializeAndParse(schema, { a: "hello", b: 33 })).toEqual({
+      expect(encodeAndDecode(schema, { a: "hello", b: 33 })).toEqual({
         a: "hello",
         b: 33,
       });
@@ -282,28 +278,28 @@ describe("e2e", () => {
           z.union([z.string(), z.number()]),
           z.union([z.boolean(), z.number()]),
         );
-        expect(serializeAndParse(schema, 2)).toEqual(2);
+        expect(encodeAndDecode(schema, 2)).toEqual(2);
       });
       it("string", () => {
         const schema = z.intersection(
           z.union([z.string(), z.number()]),
           z.union([z.string(), z.boolean()]),
         );
-        expect(serializeAndParse(schema, "")).toEqual("");
+        expect(encodeAndDecode(schema, "")).toEqual("");
       });
       it("boolean", () => {
         const schema = z.intersection(
           z.union([z.boolean(), z.number()]),
           z.union([z.string(), z.boolean()]),
         );
-        expect(serializeAndParse(schema, false)).toEqual(false);
+        expect(encodeAndDecode(schema, false)).toEqual(false);
       });
       it.todo("object", () => {
         const schema = z.intersection(
           z.union([z.object({ foo: z.string() }), z.number()]),
           z.union([z.object({ bar: z.string() }), z.string()]),
         );
-        expect(serializeAndParse(schema, { foo: "foo", bar: "bar" })).toEqual({
+        expect(encodeAndDecode(schema, { foo: "foo", bar: "bar" })).toEqual({
           foo: "foo",
           bar: "bar",
         });
@@ -311,32 +307,32 @@ describe("e2e", () => {
     });
   });
   describe("union", () => {
-    it("serializes and parses a union", () => {
+    it("encodes and decodes a union", () => {
       const schema = z.union([z.string(), z.number()]);
-      expect(serializeAndParse(schema, "hello")).toEqual("hello");
-      expect(serializeAndParse(schema, 33)).toEqual(33);
+      expect(encodeAndDecode(schema, "hello")).toEqual("hello");
+      expect(encodeAndDecode(schema, 33)).toEqual(33);
     });
     it("fails if the value is not in the union", () => {
       const schema = z.union([z.string(), z.number()]);
-      expect(() => serializeAndParse(schema, true)).toThrow();
+      expect(() => encodeAndDecode(schema, true)).toThrow();
     });
     it("works with undefined", () => {
       const schema = z.union([z.string(), z.undefined()]);
-      expect(serializeAndParse(schema, undefined)).toBe(undefined as any);
+      expect(encodeAndDecode(schema, undefined)).toBe(undefined as any);
     });
     it("works with null", () => {
       const schema = z.union([z.string(), z.null()]);
-      expect(serializeAndParse(schema, null)).toBe(null);
+      expect(encodeAndDecode(schema, null)).toBe(null);
     });
     it("works with discriminated union", () => {
       const schema = z.discriminatedUnion("foo", [
         z.object({ foo: z.literal(1) }),
         z.object({ foo: z.literal(2), bar: z.string() }),
       ]);
-      expect(serializeAndParse(schema, { foo: 1 })).toEqual({
+      expect(encodeAndDecode(schema, { foo: 1 })).toEqual({
         foo: 1,
       });
-      expect(serializeAndParse(schema, { foo: 2, bar: "bar" })).toEqual({
+      expect(encodeAndDecode(schema, { foo: 2, bar: "bar" })).toEqual({
         foo: 2,
         bar: "bar",
       });
@@ -346,12 +342,12 @@ describe("e2e", () => {
         Array.from({ length: 31 }).map((_, i) => z.literal(i)) as any,
       );
       Array.from({ length: 31 }).forEach((_, value) => {
-        expect(serializeAndParse(schema, value)).toBe(value);
+        expect(encodeAndDecode(schema, value)).toBe(value);
       });
     });
     it("fails if the union has too many members", () => {
       expect(() =>
-        serializeAndParse(
+        encodeAndDecode(
           z.union(
             Array.from({ length: 33 }).map((_, i) => z.literal(i)) as any,
           ),
@@ -361,89 +357,87 @@ describe("e2e", () => {
     });
   });
   describe("literal", () => {
-    it("serializes and parses a string literal", () => {
-      expect(serializeAndParse(z.literal("hello"), "hello")).toBe("hello");
+    it("encodes and decodes a string literal", () => {
+      expect(encodeAndDecode(z.literal("hello"), "hello")).toBe("hello");
     });
-    it("serializes and parses a number literal", () => {
-      expect(serializeAndParse(z.literal(42), 42)).toBe(42);
+    it("encodes and decodes a number literal", () => {
+      expect(encodeAndDecode(z.literal(42), 42)).toBe(42);
     });
-    it("serializes and parses a bigint literal", () => {
-      expect(serializeAndParse(z.literal(42n), 42n)).toBe(42n);
+    it("encodes and decodes a bigint literal", () => {
+      expect(encodeAndDecode(z.literal(42n), 42n)).toBe(42n);
     });
-    it("serializes and parses a boolean literal", () => {
-      expect(serializeAndParse(z.literal(false), false)).toBe(false);
+    it("encodes and decodes a boolean literal", () => {
+      expect(encodeAndDecode(z.literal(false), false)).toBe(false);
     });
-    it("serializes and parses a undefined literal", () => {
-      expect(serializeAndParse(z.literal(undefined), undefined)).toBe(
-        undefined,
-      );
+    it("encodes and decodes a undefined literal", () => {
+      expect(encodeAndDecode(z.literal(undefined), undefined)).toBe(undefined);
     });
-    it("serializes and parses a null literal", () => {
-      expect(serializeAndParse(z.literal(null), null)).toBe(null);
+    it("encodes and decodes a null literal", () => {
+      expect(encodeAndDecode(z.literal(null), null)).toBe(null);
     });
   });
   describe("enum", () => {
-    it("serializes and parses an enum", () => {
+    it("encodes and decodes an enum", () => {
       const schema = z.enum(["hello", "world"]);
-      expect(serializeAndParse(schema, "hello")).toBe("hello");
-      expect(serializeAndParse(schema, "world")).toBe("world");
+      expect(encodeAndDecode(schema, "hello")).toBe("hello");
+      expect(encodeAndDecode(schema, "world")).toBe("world");
     });
-    it("serializes and parses an native enum with string values", () => {
+    it("encodes and decodes an native enum with string values", () => {
       enum MyEnum {
         Hello = "hello",
         World = "world",
       }
       const schema = z.nativeEnum(MyEnum);
-      expect(serializeAndParse(schema, "hello")).toBe(MyEnum.Hello);
-      expect(serializeAndParse(schema, "world")).toBe(MyEnum.World);
+      expect(encodeAndDecode(schema, "hello")).toBe(MyEnum.Hello);
+      expect(encodeAndDecode(schema, "world")).toBe(MyEnum.World);
     });
-    it("serializes and parses an native enum with numeric values", () => {
+    it("encodes and decodes an native enum with numeric values", () => {
       enum MyEnum {
         Hello,
         World,
       }
       const schema = z.nativeEnum(MyEnum);
-      expect(serializeAndParse(schema, 0)).toBe(MyEnum.Hello);
-      expect(serializeAndParse(schema, 1)).toBe(MyEnum.World);
+      expect(encodeAndDecode(schema, 0)).toBe(MyEnum.Hello);
+      expect(encodeAndDecode(schema, 1)).toBe(MyEnum.World);
     });
-    it("serializes and parses an native enum with mixed values", () => {
+    it("encodes and decodes an native enum with mixed values", () => {
       enum MyEnum {
         Hello,
         World = "world",
       }
       const schema = z.nativeEnum(MyEnum);
-      expect(serializeAndParse(schema, 0)).toBe(MyEnum.Hello);
-      expect(serializeAndParse(schema, "world")).toBe(MyEnum.World);
+      expect(encodeAndDecode(schema, 0)).toBe(MyEnum.Hello);
+      expect(encodeAndDecode(schema, "world")).toBe(MyEnum.World);
     });
   });
   describe("unwrappers", () => {
     test("default", () => {
       const schema = z.string().default("hello");
-      expect(serializeAndParse(schema, undefined)).toBe("hello");
-      expect(serializeAndParse(schema, "bar")).toBe("bar");
+      expect(encodeAndDecode(schema, undefined)).toBe("hello");
+      expect(encodeAndDecode(schema, "bar")).toBe("bar");
     });
     test("optional", () => {
       const schema = z.string().optional();
-      expect(serializeAndParse(schema, "foo")).toBe("foo");
-      expect(serializeAndParse(schema, undefined)).toBe(undefined as any);
+      expect(encodeAndDecode(schema, "foo")).toBe("foo");
+      expect(encodeAndDecode(schema, undefined)).toBe(undefined as any);
     });
     test("nullable", () => {
       const schema = z.string().nullable();
-      expect(serializeAndParse(schema, "foo")).toBe("foo");
-      expect(serializeAndParse(schema, null)).toBe(null);
+      expect(encodeAndDecode(schema, "foo")).toBe("foo");
+      expect(encodeAndDecode(schema, null)).toBe(null);
     });
     test("catch", () => {
       const schema = z.string().catch(() => "hello");
-      expect(serializeAndParse(schema, "foo")).toBe("foo");
-      expect(serializeAndParse(schema, 33)).toBe("hello");
+      expect(encodeAndDecode(schema, "foo")).toBe("foo");
+      expect(encodeAndDecode(schema, 33)).toBe("hello");
     });
     test("readonly", () => {
       const schema = z.object({ foo: z.string() }).readonly();
-      expect(serializeAndParse(schema, { foo: "foo" })).toEqual({ foo: "foo" });
+      expect(encodeAndDecode(schema, { foo: "foo" })).toEqual({ foo: "foo" });
     });
     test("brand", () => {
       const schema = z.object({ id: z.number() }).brand<"userId">();
-      expect(serializeAndParse(schema, { id: 1 })).toEqual({ id: 1 });
+      expect(encodeAndDecode(schema, { id: 1 })).toEqual({ id: 1 });
     });
     test("lazy", () => {
       let schema: z.ZodObject<any>;
@@ -462,20 +456,20 @@ describe("e2e", () => {
       value.foo.recursive = value;
       // @ts-expect-error recursive value
       value.foo.recursive.foo.recursive = inner;
-      expect(serializeAndParse(schema, value)).toEqual(value);
+      expect(encodeAndDecode(schema, value)).toEqual(value);
     });
     test("pipe", () => {
       const schema = z
         .string()
         .transform((x) => x.length)
         .pipe(z.number());
-      expect(serializeAndParse(schema, "hello")).toBe(5);
+      expect(encodeAndDecode(schema, "hello")).toBe(5);
     });
     test("preprocess", () => {
       const schema = z.preprocess((x) => String(x), z.string());
-      expect(serializeAndParse(schema, 123)).toBe("123");
+      expect(encodeAndDecode(schema, 123)).toBe("123");
     });
-    test("preprocess needs to happen during serialization", () => {
+    test("preprocess needs to happen during encoding", () => {
       const schema = z.preprocess((x, ctx) => {
         if (Array.isArray(x)) {
           return x;
@@ -489,22 +483,22 @@ describe("e2e", () => {
           received: typeof x,
         });
       }, z.array(z.number()));
-      expect(() => serializeAndParse(schema, "3")).toThrow();
-      expect(serializeAndParse(schema, 3)).toEqual([0, 1, 2]);
+      expect(() => encodeAndDecode(schema, "3")).toThrow();
+      expect(encodeAndDecode(schema, 3)).toEqual([0, 1, 2]);
     });
     test("refine", () => {
       const schema = z.string().refine((s) => s.length > 3);
-      expect(serializeAndParse(schema, "asdf")).toBe("asdf");
-      expect(() => serializeAndParse(schema, "as")).toThrow();
+      expect(encodeAndDecode(schema, "asdf")).toBe("asdf");
+      expect(() => encodeAndDecode(schema, "as")).toThrow();
     });
     test("transform", () => {
       const schema = z
         .string()
         .nullish()
         .transform((s) => s ?? null);
-      expect(serializeAndParse(schema, "asdf")).toBe("asdf");
-      expect(serializeAndParse(schema, null)).toBe(null);
-      expect(serializeAndParse(schema, undefined)).toBe(null);
+      expect(encodeAndDecode(schema, "asdf")).toBe("asdf");
+      expect(encodeAndDecode(schema, null)).toBe(null);
+      expect(encodeAndDecode(schema, undefined)).toBe(null);
     });
     test("transform inside catch", () => {
       const schema = z
@@ -515,13 +509,13 @@ describe("e2e", () => {
             .pipe(z.number()),
         })
         .catch(() => ({ foo: 1234 }));
-      expect(serializeAndParse(schema, { foo: "adf" })).toEqual({ foo: 3 });
+      expect(encodeAndDecode(schema, { foo: "adf" })).toEqual({ foo: 3 });
       // catch happend outside of the transform.
       // so the transform was applied because of the catch.
       // so the transform cannot be serialized since the schema has changed
       // catch needs to happen during the serialization process
       // all other transformations are applied after the parsing process
-      expect(() => serializeAndParse(schema, { fooasdf: 1 })).toThrow();
+      expect(() => encodeAndDecode(schema, { fooasdf: 1 })).toThrow();
     });
   });
   it("works with complex objects", () => {
@@ -604,6 +598,6 @@ describe("e2e", () => {
         },
       ],
     };
-    expect(serializeAndParse(complexSchema, value)).toEqual(value);
+    expect(encodeAndDecode(complexSchema, value)).toEqual(value);
   });
 });

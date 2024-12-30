@@ -2,6 +2,7 @@ await Bun.build({
   entrypoints: ["./src/index.ts"],
   outdir: "./dist",
   target: "browser",
+  external: ["zod"],
 });
 await Bun.build({
   entrypoints: ["./src/index.ts"],

@@ -10,7 +10,7 @@ This can be useful for websocket applications where you want to send a lot of sm
 ```ts
 // --- server.ts ---
 import { z } from 'zod';
-import { serialize, parse } from 'zod-serialize';
+import { encode, decode } from 'zod-serialize';
 
 const playerPosSchema = z.object({
   type: z.literal('playerPos'),
@@ -47,10 +47,10 @@ Bun.serve({
      // ...
      message: (ws, message) => {
         // ...
-        const messageValue = parse(playerMessageSchema, message);
+        const messageValue = decode(playerMessageSchema, message);
         if(messageValue.type === 'playerMove'){
           const newPlayerPos = updatePlayerPos(messageValue);
-          const buffer = serialize(serverUpdateSchema, newPlayerPos);
+          const buffer = encode(serverUpdateSchema, newPlayerPos);
           ws.publishBinary("playerPos", buffer);
         }
         // ...
@@ -62,21 +62,21 @@ Bun.serve({
 
 // --- client.ts ---
 import { playerPosSchema, playerMessageSchema } from './server.ts';
-import { serialize, parse } from 'zod-serialize';
+import { encode, decode } from 'zod-serialize';
 
 const ws = new WebSocket('ws://localhost:3000');
 
 ws.onmessage = (event) => {
-  const messageValue = parse(playerMessageSchema, event.data);
+  const messageValue = decode(playerMessageSchema, event.data);
   if(messageValue.type === 'playerPos'){
-    const playerPos = parse(playerPosSchema, event.data);
+    const playerPos = decode(playerPosSchema, event.data);
     updatePlayerPos(playerPos);
   }
 };
 
 const onKeypress = (e) => {
   const direction = getDirectionFromKey(e.key);
-  const buffer = serialize(playerMessageSchema, { type: 'playerMove', direction });
+  const buffer = encode(playerMessageSchema, { type: 'playerMove', direction });
   ws.send(buffer);
 };
 ```
