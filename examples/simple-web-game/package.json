@@ -1,0 +1,14 @@
+{
+  "name": "simple-web-game",
+  "module": "server.ts",
+  "type": "module",
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "zod-serialize": "workspace:*"
+  }
+}
